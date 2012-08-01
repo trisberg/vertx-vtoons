@@ -16,19 +16,22 @@
 
 package webapp
 
+import org.cloudfoundry.runtime.env.CloudEnvironment
+import org.cloudfoundry.runtime.env.MongoServiceInfo
+
+def cloudEnv = new CloudEnvironment()
+
 // Our application config - you can maintain it here or alternatively you could
 // stick it in a conf.json text file and specify that on the command line when
 // starting this verticle
-
-def env = container.env
 
 // Configuration for the web server
 def webServerConf = [
 
   // Normal web server stuff
 
-  port: (env['VCAP_APP_PORT'] ?: '8080') as int,
-  host: env['VCAP_APP_HOST'] ?: 'localhost',
+  port: (cloudEnv.getValue('VCAP_APP_PORT') ?: '8080') as int,
+  host: cloudEnv.getValue('VCAP_APP_HOST') ?: 'localhost',
   /* ssl: true, */
 
   // Configuration for the event bus client side bridge
@@ -70,16 +73,13 @@ def webServerConf = [
 // Configuration for MongoDb 
 def mongoConf = [:]
 
-if (env['VCAP_SERVICES']) {
-  def vcapEnv = new groovy.json.JsonSlurper().parseText(env['VCAP_SERVICES'])
-
-  vcapEnv['mongodb-1.8'].credentials.with {
-    mongoConf.host = host[0]
-    mongoConf.port = port[0] as int
-    mongoConf.db_name = db[0]
-    mongoConf.username = username[0]
-    mongoConf.password = password[0]
-  }
+if (cloudEnv.isCloudFoundry()) {
+  mongoSvcInfo = cloudEnv.getServiceInfo("mongodb-vtoons", MongoServiceInfo.class)
+  mongoConf.host = mongoSvcInfo.getHost()
+  mongoConf.port = mongoSvcInfo.getPort() as int
+  mongoConf.db_name = mongoSvcInfo.getDatabase()
+  mongoConf.username = mongoSvcInfo.getUserName()
+  mongoConf.password = mongoSvcInfo.getPassword()
 }
 
 // Now we deploy the modules that we need

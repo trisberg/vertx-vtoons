@@ -18,52 +18,58 @@ The vert.x web site include a set of [tutorials](http://vertx.io/tutorials.html)
 
 ### Configuration for CloudFoundry
 
+#### CloudFoundry runtime support
+
+We can add support to detect runtime environment settings using the [Java cloudfoundry-runtime ](https://github.com/cloudfoundry/vcap-java/tree/master/cloudfoundry-runtime) library.
+
+    import org.cloudfoundry.runtime.env.CloudEnvironment
+    import org.cloudfoundry.runtime.env.MongoServiceInfo
+
+    def cloudEnv = new CloudEnvironment()
+
 #### Web Server
 
 For simplicity, the configuration of the web server in the tutorial application is hard-coded to `localhost:8080`:
 
     def webServerConf = [
         port: 8080,
-        host: 'localhost'
+        host: 'localhost',
+    
+    ...
+    
     ]
 
-    // Start the web server, with the config we defined above
-    container.deployVerticle('web-server', webServerConf);
-
-In order to run on CloudFoundry, the application must use the host name and port provided by CloudFoundry. This code reads the host name and port from the CloudFoundry environment, defaulting to `localhost:8080` if the CloudFoundry environment is not detected:
+In order to run on CloudFoundry, the application must use the host name and port provided by CloudFoundry. This code reads the host name and port from the CloudEnvironment instance, defaulting to `localhost:8080` if the CloudFoundry environment is not detected:
 
     def webServerConf = [
-        port: (container.env['VCAP_APP_PORT'] ?: '8080') as int,
-        host: container.env['VCAP_APP_HOST'] ?: 'localhost',
+        port: (cloudEnv.getValue('VCAP_APP_PORT') ?: '8080') as int,
+        host: cloudEnv.getValue('VCAP_APP_HOST') ?: 'localhost',
+    
+    ...
+    
     ]
-
-    // Start the web server, with the config we defined above
-    container.deployVerticle('web-server', webServerConf);
 
 #### MongoDB
 
-The tutorial app uses MongoDB as a back-end data store. No configuration is given for the MongoDB connection, so the default host and port are used by the MongoDB vert.x busmod. 
+The tutorial app uses MongoDB as a back-end data store. No configuration is given for the MongoDB connection, so the default host and port are used by the MongoDB vert.x module. 
 
-When the application is pushed to CloudFoundry, it is bound to a MongoDB service. The connection parameters for the MongoDB service must also be read from the environment, defaulting if the CloudFoundry environment is not detected:
+When the application is pushed to CloudFoundry, it is bound to a MongoDB service. The connection parameters for the MongoDB service must also be read from the environment using the MongoServiceInfo class, defaulting if the CloudFoundry environment is not detected:
 
     // Configuration for MongoDb 
     def mongoConf = [:]
 
-    if (container.env['VCAP_SERVICES']) {
-        def vcapEnv = new groovy.json.JsonSlurper().parseText(container.env['VCAP_SERVICES'])
-
-        vcapEnv['mongodb-1.8'].credentials.with {
-            mongoConf.host = host[0]
-            mongoConf.port = port[0] as int
-            mongoConf.db_name = db[0]
-            mongoConf.username = username[0]
-            mongoConf.password = password[0]
-        }
+    if (cloudEnv.isCloudFoundry()) {
+      mongoSvcInfo = cloudEnv.getServiceInfo("mongodb-vtoons", MongoServiceInfo.class)
+      mongoConf.host = mongoSvcInfo.getHost()
+      mongoConf.port = mongoSvcInfo.getPort() as int
+      mongoConf.db_name = mongoSvcInfo.getDatabase()
+      mongoConf.username = mongoSvcInfo.getUserName()
+      mongoConf.password = mongoSvcInfo.getPassword()
     }
 
 ### SSL
 
-SSL and HTTPS on CloudFoundry is tricky. In order to simplify this example, the SSL support was removed from the tutorial application. 
+SSL and HTTPS on CloudFoundry is tricky. In order to simplify this example, the SSL support was removed from the example application. 
 
 ### vert.x Distribution
 
@@ -73,6 +79,7 @@ A full vert.x distribution (available on the [Downloads](http://vertx.io/downloa
 * conf
 * lib
 
+We are also using the [Java cloudfoundry-runtime so we need to download this jar](https://repo.springsource.org/simple/libs-milestone-s3-cache/org/cloudfoundry/cloudfoundry-runtime/0.8.1/cloudfoundry-runtime-0.8.1.jar)  and put it in the vert.x/lib directory that we just created.
 
 ## Pushing the Application to CloudFoundry
 
@@ -91,7 +98,7 @@ Since this sample application uses Groovy, no compilation of the application fil
     Selected java7
     Start Command: vert.x/bin/vertx run App.groovy
     Application Deployed URL [None]: vtoons.cloudfoundry.com
-    Memory reservation (128M, 256M, 512M, 1G, 2G) [64M]: 128M
+    Memory reservation (128M, 256M, 512M, 1G, 2G) [64M]: 256M
     How many instances? [1]: 
     Bind existing services to 'vt2'? [yN]: n
     Create services to bind to 'vt2'? [yN]: y
@@ -125,4 +132,3 @@ The important responses the `vmc push` prompts are these:
 * Create a new MongoDB service to bind the application to
 
 Note that if you copy this project and try to push it, you will have to change the url to something other than `vtoons.cloudfoundry.com`.
-
