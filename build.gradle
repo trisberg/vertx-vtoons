@@ -1,0 +1,50 @@
+repositories {
+  mavenCentral()
+  maven { url "http://repo.springsource.org/libs-snapshot" }
+  add(new org.apache.ivy.plugins.resolver.URLResolver()) {
+    name = 'vertx.io'
+    addArtifactPattern 'http://[organisation]/downloads/[module]-[revision].[ext]'
+  }
+
+}
+
+configurations {
+    framework
+    jars
+}
+
+dependencies {
+    framework "vertx.io:vert.x:${vertxVersion}@zip"
+    jars "org.cloudfoundry:cloudfoundry-runtime:0.8.1"
+}
+
+task runtime(type: Copy) {
+  group = 'vtoons'
+  destinationDir file('build')
+
+  from configurations.framework
+  doLast {
+      ant.delete(file: "build/vert.x")
+      ant.unzip(src: "build/vert.x-${vertxVersion}.zip", dest: "build")
+      ant.delete(file: "build/vert.x-${vertxVersion}.zip")
+      ant.rename(src: "build/vert.x-${vertxVersion}", dest: "build/vert.x")
+  }
+}
+
+task assemble(type: Copy, dependsOn: 'runtime') {
+  group = 'vtoons'
+  destinationDir file('build')
+
+  from(configurations.jars) {
+      into 'mods/vtoons/lib'
+  }
+  from('src') {
+      into 'mods/vtoons'
+  }
+}
+
+task clean(type: Delete) {
+  delete 'build'
+}
+
+task wrapper(type: Wrapper) { gradleVersion = "1.0" }
