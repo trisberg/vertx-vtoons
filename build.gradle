@@ -53,7 +53,7 @@ task clean(type: Delete) {
   delete "${buildDir}"
 }
 
-task wrapper(type: Wrapper) { gradleVersion = "1.0" }
+task wrapper(type: Wrapper) { gradleVersion = "1.1" }
 
 /*
 Gradle CloudFoundry plugin configuration.
